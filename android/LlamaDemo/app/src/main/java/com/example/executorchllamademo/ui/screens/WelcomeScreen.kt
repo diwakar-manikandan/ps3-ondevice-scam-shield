@@ -1,40 +1,36 @@
-/*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree.
- */
-
 package com.example.executorchllamademo.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.executorchllamademo.ui.theme.LocalAppColors
@@ -46,179 +42,128 @@ fun WelcomeScreen(
     onAppSettingsClick: () -> Unit = {}
 ) {
     val appColors = LocalAppColors.current
-    val scrollState = rememberScrollState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(appColors.settingsBackground)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 28.dp, vertical = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // Top banner
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(appColors.navBar)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+        // Subtle top offline status pill
+        Surface(
+            shape = CircleShape,
+            color = Color(0xFF2E7D32).copy(alpha = 0.14f)
         ) {
-            Text(
-                text = "ExecuTorch Llama Demo",
-                color = appColors.textOnNavBar,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        // Scrollable content
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = "Welcome to ExecuTorch Llama Demo",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = appColors.settingsText
-            )
-
-            Text(
-                text = "Configure your LLM model and app settings to get started.",
-                fontSize = 14.sp,
-                color = appColors.settingsSecondaryText
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Load Local LLM Model Card
-            WelcomeCard(
-                title = "Load local model",
-                description = "Select your own model and tokenizer path.",
-                icon = Icons.Filled.PlayArrow,
-                onClick = onLoadModelClick
-            )
-
-            // Download Preset Model Card
-            WelcomeCard(
-                title = "Preset model",
-                description = "Download a pre-configured model from the cloud.",
-                icon = Icons.Filled.CloudDownload,
-                onClick = onDownloadModelClick
-            )
-
-            // App Settings Card
-            WelcomeCardNoDescription(
-                title = "App Settings",
-                icon = Icons.Filled.Settings,
-                onClick = onAppSettingsClick
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-    }
-}
-
-@Composable
-private fun WelcomeCard(
-    title: String,
-    description: String,
-    icon: ImageVector,
-    onClick: () -> Unit
-) {
-    val appColors = LocalAppColors.current
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = appColors.settingsRowBackground
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = appColors.settingsText,
-                modifier = Modifier.size(32.dp)
-            )
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 16.dp)
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = appColors.settingsText
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(Color(0xFF4CAF50), CircleShape)
                 )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = description,
+                    text = "Offline Protection Ready",
                     fontSize = 13.sp,
-                    color = appColors.settingsSecondaryText
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF81C784)
                 )
             }
         }
-    }
-}
 
-@Composable
-private fun WelcomeCardNoDescription(
-    title: String,
-    icon: ImageVector,
-    onClick: () -> Unit
-) {
-    val appColors = LocalAppColors.current
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = appColors.settingsRowBackground
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+        // Clean center focal point
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = appColors.settingsText,
-                modifier = Modifier.size(32.dp)
-            )
+            // Soft layered shield icon
+            Box(
+                modifier = Modifier
+                    .size(104.dp)
+                    .background(Color(0xFF2196F3).copy(alpha = 0.10f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .background(Color(0xFF2196F3).copy(alpha = 0.18f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Shield,
+                        contentDescription = "Scam Shield",
+                        tint = Color(0xFF64B5F6),
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
 
             Text(
-                text = title,
-                fontSize = 16.sp,
+                text = "Scam Shield",
+                fontSize = 30.sp,
                 fontWeight = FontWeight.Bold,
                 color = appColors.settingsText,
-                modifier = Modifier.padding(start = 16.dp)
+                letterSpacing = (-0.5).sp
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "Paste any suspicious SMS or link to check if it is safe. Everything stays private on your phone.",
+                fontSize = 17.sp,
+                color = appColors.settingsSecondaryText,
+                textAlign = TextAlign.Center,
+                lineHeight = 25.sp
+            )
+        }
+
+        // Bottom primary action + discrete settings link
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Button(
+                onClick = onLoadModelClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF2563EB),
+                    contentColor = Color.White
+                ),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+            ) {
+                Text(
+                    text = "Check a Message",
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Icon(
+                    imageVector = Icons.Rounded.ArrowForward,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            TextButton(onClick = onDownloadModelClick) {
+                Text(
+                    text = "Settings",
+                    fontSize = 13.sp,
+                    color = appColors.settingsSecondaryText.copy(alpha = 0.7f)
+                )
+            }
         }
     }
 }

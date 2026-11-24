@@ -49,15 +49,30 @@ class WelcomeActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     WelcomeScreen(
                         onLoadModelClick = {
-                            startActivity(Intent(this@WelcomeActivity, ModelSettingsActivity::class.java))
+                            val prefs = DemoSharedPreferences(this@WelcomeActivity)
+                            val current = prefs.getModuleSettings()
+                            val readySettings = current.copy(
+                                modelFilePath = current.modelFilePath.ifEmpty {
+                                    "/data/local/tmp/llama/Llama-3.2-1B-Instruct-8da4w-gptq-2k.pte"
+                                },
+                                tokenizerFilePath = current.tokenizerFilePath.ifEmpty {
+                                    "/data/local/tmp/llama/tokenizer.model"
+                                },
+                                modelType = ModelType.LLAMA_3,
+                                backendType = BackendType.XNNPACK,
+                                isLoadModel = true
+                            )
+                            prefs.saveModuleSettings(readySettings)
+                            startActivity(Intent(this@WelcomeActivity, MainActivity::class.java))
                         },
                         onDownloadModelClick = {
-                            startActivity(Intent(this@WelcomeActivity, SelectPresetModelActivity::class.java))
+                            startActivity(Intent(this@WelcomeActivity, ModelSettingsActivity::class.java))
                         },
                         onAppSettingsClick = {
                             startActivity(Intent(this@WelcomeActivity, AppSettingsActivity::class.java))
                         }
                     )
+
                 }
             }
         }

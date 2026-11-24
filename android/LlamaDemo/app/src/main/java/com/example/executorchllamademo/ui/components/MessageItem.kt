@@ -156,13 +156,23 @@ private fun TextMessage(
     val appColors = LocalAppColors.current
     val isSent = message.isSent
     val arrangement = if (isSent) Arrangement.End else Arrangement.Start
-    val bubbleColor = if (isSent) MessageBubbleSent else appColors.messageBubbleReceived
+
+    // Color-code SCAM as Red and SAFE as Green for instant visual clarity
+    val isScam = isSent && message.text.startsWith("[SCAM", ignoreCase = true)
+    val isSafe = isSent && message.text.startsWith("[SAFE", ignoreCase = true)
+
+    val bubbleColor = when {
+        isScam -> Color(0xFFB71C1C) // High-contrast Red for Scam
+        isSafe -> Color(0xFF1B5E20) // High-contrast Green for Safe
+        isSent -> MessageBubbleSent
+        else -> appColors.messageBubbleReceived
+    }
     val textColor = if (isSent) Color.White else appColors.textOnBubble
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 6.dp),
         horizontalArrangement = arrangement
     ) {
         Column(
@@ -170,40 +180,43 @@ private fun TextMessage(
                 .widthIn(max = maxWidth)
                 .background(
                     color = bubbleColor,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(16.dp)
                 )
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
             if (isSent) {
-                // User messages: plain text
                 Text(
                     text = message.text,
-                    fontSize = 16.sp,
+                    fontSize = 17.sp,
+                    lineHeight = 24.sp,
                     letterSpacing = 0.sp,
                     color = textColor
                 )
             } else {
-                // Thinking block (collapsible, shown before response)
                 if (message.thinkingContent.isNotEmpty()) {
                     ThinkingBlock(
                         content = message.thinkingContent,
                         textColor = textColor
                     )
                 }
-                // Model responses: Markdown rendering
                 if (message.text.isNotEmpty()) {
+                    // Put every bullet on a clean new line for easy reading
+                    val formattedMarkdown = message.text
+                        .replace(" • ", "\n\n• ")
+                        .replace(". •", ".\n\n•")
+
                     RichText(
                         style = RichTextStyle(
                             codeBlockStyle = CodeBlockStyle(
                                 textStyle = TextStyle(
-                                    fontSize = 14.sp,
+                                    fontSize = 15.sp,
                                     fontFamily = FontFamily.Monospace,
                                     color = textColor
                                 )
                             )
                         )
                     ) {
-                        Markdown(content = message.text)
+                        Markdown(content = formattedMarkdown)
                     }
                 }
             }

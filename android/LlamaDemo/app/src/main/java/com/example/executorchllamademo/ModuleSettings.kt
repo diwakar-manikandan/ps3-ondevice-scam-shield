@@ -14,16 +14,17 @@ package com.example.executorchllamademo
  */
 data class ModuleSettings(
     // Legacy single-model fields (kept for backward compatibility)
-    val modelFilePath: String = "",
-    val tokenizerFilePath: String = "",
+    val modelFilePath: String = "/data/local/tmp/llama/Llama-3.2-1B-Instruct-8da4w-gptq-2k.pte",
+    val tokenizerFilePath: String = "/data/local/tmp/llama/tokenizer.model",
     val dataPath: String = "",
     val temperature: Double = DEFAULT_TEMPERATURE,
-    val systemPrompt: String = "",
+    val systemPrompt: String = PromptFormat.DEFAULT_SYSTEM_PROMPT,
     val userPrompt: String = PromptFormat.getUserPromptTemplate(DEFAULT_MODEL),
     val modelType: ModelType = DEFAULT_MODEL,
     val backendType: BackendType = DEFAULT_BACKEND,
     val isClearChatHistory: Boolean = false,
     val isLoadModel: Boolean = false,
+
 
     // LoRA mode toggle - when enabled, allows multiple model selection
     val isLoraMode: Boolean = false,
