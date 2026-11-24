@@ -17,7 +17,7 @@ object PromptFormat {
     const val USER_PLACEHOLDER = "{{ user_prompt }}"
     const val ASSISTANT_PLACEHOLDER = "{{ assistant_response }}"
     const val THINKING_MODE_PLACEHOLDER = "{{ thinking_mode }}"
-    const val DEFAULT_SYSTEM_PROMPT = "Answer the questions in a few sentences"
+    const val DEFAULT_SYSTEM_PROMPT = "You are an Indian SMS security assistant. Strictly obey the given Verdict. If Verdict is SCAM, output ONLY 2 short bullet points explaining the specific red flags (fake links, false urgency, credential requests). If Verdict is SAFE, output ONLY 2 short bullet points explaining why it looks like a legitimate alert. Keep each bullet under 15 words with no intro sentence."
 
     @JvmStatic
     fun getSystemPromptTemplate(modelType: ModelType): String {

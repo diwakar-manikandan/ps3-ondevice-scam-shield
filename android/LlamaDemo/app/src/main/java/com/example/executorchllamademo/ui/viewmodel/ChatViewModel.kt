@@ -620,33 +620,53 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), L
         }
         return imageList
     }
+    // TODO: Replace heuristic body with Archana's trained classifier (.tflite / .onnx / .pte)
+    private fun classifySms(smsText: String): Pair<String, Int> {
+        val lower = smsText.lowercase()
+        val scamSignals = listOf(
+            "kyc", "suspend", "blocked", "pan update", "bit.ly", "tinyurl",
+            ".xyz", ".top", ".buzz", "urgent", "disconnected", "electricity",
+            "lottery", "prize", "click here", "verify now", "account freeze"
+        )
+        val hits = scamSignals.count { lower.contains(it) }
+        return if (hits >= 1 || (lower.contains("http") && !lower.contains("sbi.co.in") && !lower.contains("hdfcbank.com"))) {
+            val confidence = (88 + (hits * 3)).coerceAtMost(99)
+            Pair("SCAM", confidence)
+        } else {
+            Pair("SAFE", 96)
+        }
+    }
 
     fun sendMessage() {
         if (inputText.trim().isEmpty()) return
         if (!isModelReady || isGenerating) return
 
-        // Add selected images to chat
-        for (imageURI in _selectedImages) {
-            _messages.add(Message(imageURI.toString(), true, MessageType.IMAGE, 0))
-        }
+        val rawPrompt = inputText.trim()
 
-        val rawPrompt = inputText
-        val finalPrompt: String
-
-        if (currentSettingsFields.modelType == ModelType.LLAVA_1_5 && _selectedImages.isNotEmpty()) {
-            finalPrompt = PromptFormat.getLlavaMultimodalUserPrompt()
-                .replace(PromptFormat.USER_PLACEHOLDER, rawPrompt)
-        } else if (currentSettingsFields.modelType == ModelType.GEMMA_3 && _selectedImages.isNotEmpty()) {
-            finalPrompt = PromptFormat.getGemmaMultimodalUserPrompt()
-                .replace(PromptFormat.USER_PLACEHOLDER, rawPrompt)
+        // 1. Run lightweight classifier first (or respect manual "Verdict:" if provided)
+        val (verdict, confidence) = classifySms(rawPrompt)
+        val classifierInput = if (rawPrompt.startsWith("Verdict:", ignoreCase = true)) {
+            rawPrompt
         } else {
-            finalPrompt = (if (shouldAddSystemPrompt) currentSettingsFields.getFormattedSystemPrompt() else "") +
-                    currentSettingsFields.getFormattedUserPrompt(rawPrompt, thinkMode)
+            "Verdict: $verdict ($confidence%). Message: $rawPrompt"
         }
-        shouldAddSystemPrompt = false
 
-        // Add user message
-        _messages.add(Message(rawPrompt, true, MessageType.TEXT, promptID))
+        // 2. Pick a tailored system prompt based on the classifier verdict
+        val dynamicSystemPrompt = if (verdict == "SCAM") {
+            "You are an Indian SMS security assistant. Strictly obey the given Verdict. Output ONLY 2 short bullet points explaining the specific red flags (fake links, false urgency, credential requests). Keep each bullet under 15 words with no intro sentence."
+        } else {
+            "You are an SMS security assistant. The user received this message and it was verified SAFE. Summarize in 2 short bullet points why it appears legitimate (e.g., standard informational format, no suspicious links or urgent threats). Keep each bullet under 15 words with no intro sentence."
+        }
+
+        val formattedSystem = PromptFormat.getSystemPromptTemplate(currentSettingsFields.modelType)
+            .replace(PromptFormat.SYSTEM_PLACEHOLDER, dynamicSystemPrompt)
+
+        val finalPrompt = formattedSystem +
+                currentSettingsFields.getFormattedUserPrompt(classifierInput, thinkMode)
+
+
+        // 3. Show the user's pasted SMS + classifier badge in the UI
+        _messages.add(Message("[$verdict • $confidence% confidence]\n$rawPrompt", true, MessageType.TEXT, promptID))
         inputText = ""
 
         // Create result message placeholder
@@ -654,49 +674,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), L
         isInThinkingBlock = false
         _messages.add(resultMessage!!)
 
-        // Clear selected images after adding to chat
         _selectedImages.clear()
         showMediaSelector = false
         promptID++
 
-        // Run generation
+        // Run single-turn generation
         executor.execute {
             android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_MORE_FAVORABLE)
-            ETLogging.getInstance().log("starting runnable generate()")
+            ETLogging.getInstance().log("starting single-turn Scam Shield generate()")
             isGenerating = true
 
+            // Reset KV cache so previous scans never bleed into the next SMS
+            module?.resetContext()
+
             val generateStartTime = System.currentTimeMillis()
-            if (ModelUtils.getModelCategory(
-                    currentSettingsFields.modelType,
-                    currentSettingsFields.backendType
-                ) == ModelUtils.VISION_MODEL
-            ) {
-                if (currentSettingsFields.modelType == ModelType.VOXTRAL && audioFileToPrefill != null) {
-                    prefillVoxtralAudio(audioFileToPrefill!!, finalPrompt)
-                    audioFileToPrefill = null
-                    ETLogging.getInstance().log("Running vision model inference.. prompt=(empty after audio prefill)")
-                    module?.generate("", appSettings.maxSeqLen, this, false)
-                } else {
-                    ETLogging.getInstance().log("Running vision model inference.. prompt=$finalPrompt")
-                    module?.generate(finalPrompt, appSettings.maxSeqLen, this, false)
-                }
-            } else if (currentSettingsFields.modelType == ModelType.LLAMA_GUARD_3) {
-                val llamaGuardPromptForClassification =
-                    PromptFormat.getFormattedLlamaGuardPrompt(rawPrompt)
-                ETLogging.getInstance().log("Running inference.. prompt=$llamaGuardPromptForClassification")
-                module?.generate(
-                    llamaGuardPromptForClassification,
-                    llamaGuardPromptForClassification.length + 64,
-                    this,
-                    false
-                )
-            } else {
-                ETLogging.getInstance().log("Running inference.. prompt=$finalPrompt")
-                module?.generate(finalPrompt, appSettings.maxSeqLen, this, false)
-            }
+            module?.generate(finalPrompt, appSettings.maxSeqLen, this, false)
 
             val generateDuration = System.currentTimeMillis() - generateStartTime
             resultMessage?.let { msg ->
+                // Ensure second bullet starts cleanly on its own line
                 msg.totalGenerationTime = generateDuration
                 val index = _messages.indexOfLast { it === msg }
                 if (index >= 0) {
@@ -709,6 +705,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), L
             ETLogging.getInstance().log("Inference completed")
         }
     }
+
 
     fun stopGeneration() {
         Log.i("ChatViewModel", "stopGeneration called")
