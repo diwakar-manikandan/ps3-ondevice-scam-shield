@@ -3,28 +3,32 @@
 An offline Android application that detects fraudulent SMS messages and phishing links—and explains *why* they are risky in plain, easy-to-read bullet points. Built for the **Arm Bharat AI-SoC Student Challenge**, the entire pipeline runs locally on-device using Meta's **ExecuTorch** runtime with zero internet dependency.
 
 ## Why We Built This
-Digital payment and KYC scams disproportionately target older adults and non-technical users. Existing spam filters either rely on cloud APIs (raising privacy concerns with personal banking SMS) or simply block messages without explaining what is wrong. Scam Shield keeps all user data strictly on the phone while giving clear, high-contrast warnings anyone can understand.
+Digital payment, KYC, and "digital arrest" scams disproportionately target older adults and non-technical users. Existing spam filters either rely on cloud APIs (raising privacy concerns with personal banking SMS) or simply block messages without explaining what is wrong. Scam Shield keeps all user data strictly on the phone while presenting high-contrast, plain-English warnings anyone can understand.
 
-## Architecture & How Both Models Work Together
-Scam Shield uses a two-stage local inference pipeline:
+## Architecture: 3-Stage Grounded On-Device Pipeline
+To prevent small language models from hallucinating red flags while maintaining millisecond detection speeds, Scam Shield separates detection, evidence extraction, and explanation into three local stages:
 
-1. **Stage 1 — Fast Scam Classifier (`training/`):**
-   A lightweight text and URL risk model exported to `.pte` format scans the pasted SMS in milliseconds, checking linguistic manipulation cues and suspicious domain patterns to output a `SCAM` or `SAFE` verdict with a confidence score.
-2. **Stage 2 — On-Device Explanation Engine (`android/LlamaDemo/`):**
-   Using **ExecuTorch** (`LlmModule`) with the **XNNPACK** CPU backend, `Llama-3.2-1B-Instruct` (quantized `8da4w`, 2k context) takes the raw SMS alongside the Stage 1 verdict and generates two concise bullet points explaining the exact red flags—or why a legitimate alert looks safe.
-   * **Single-Turn Context Isolation:** The KV cache is reset (`module?.resetContext()`) before every scan so previous scam checks never bleed into subsequent messages.
-   * **Dynamic Prompt Routing:** Separate system prompts are selected at runtime based on the Stage 1 verdict to keep responses focused and prevent hedging.
+1. **Stage 1 — Hybrid ML & Behavioral Classifier (`ScamClassifier.kt` + `scam_classifier.pte`):**
+   * Replicates a 5,000-feature TF-IDF vectorizer (`(1, 2)`-grams, sublinear TF, L2 normalization) in Kotlin and runs a quantized Logistic Regression model via ExecuTorch (`Module.load`) in `<15 ms`.
+   * Combines the ML probability (`0.4` weight) with behavioral risk indicators (`0.6` weight + high-risk floors for OTP/PIN requests, money transfers, and arrest threats) to produce a `SCAM` or `SAFE` verdict and confidence score.
+2. **Stage 2 — Deterministic Evidence Extraction (`ScamRules.kt`):**
+   * Extracts exact, grounded red-flag evidence from the SMS (arrest threats, urgent money demands, OTP/PIN harvesting, KYC/account suspension threats, suspicious links) so the LLM only explains verified signals present in the message.
+   * Wraps untrusted SMS text inside `<sms>...</sms>` tags to defend against prompt-injection attacks and appends deterministic safety guidance (including India's national cybercrime helpline **1930** and **cybercrime.gov.in**).
+3. **Stage 3 — Grounded Natural-Language Explanation (`Llama-3.2-1B-Instruct`):**
+   * Runs `Llama-3.2-1B-Instruct-8da4w-gptq-2k.pte` via ExecuTorch (`LlmModule`) on the **XNNPACK** CPU backend to turn the extracted evidence into concise, senior-friendly bullet points.
+   * Resets the KV cache (`module?.resetContext()`) before every scan so previous scam checks never bleed into subsequent messages.
 
 ## On-Device Benchmarks
 Tested in Airplane Mode on a **OnePlus Nord 4 (Snapdragon 7+ Gen 3, 8 GB RAM)**:
 
 | Metric | Measured Performance |
 | :--- | :--- |
-| **LLM Model Size** | ~916 MB (`Llama-3.2-1B-Instruct-8da4w-gptq-2k.pte`) |
-| **Cold Model Load Time** | ~0.64 seconds |
-| **Generation Speed** | 20.0 – 27.4 tokens/sec |
-| **End-to-End Explanation Latency** | ~2.3 – 3.8 seconds |
-| **Internet / Cloud Calls** | 0 (100% offline) |
+| **Stage 1 Classifier Size & Latency** | `21 KB` (`scam_classifier.pte`) • `<15 ms` |
+| **Stage 3 LLM Size** | `~916 MB` (`Llama-3.2-1B-Instruct-8da4w-gptq-2k.pte`) |
+| **Cold Model Load Time** | `~0.64 – 0.92 seconds` |
+| **LLM Generation Speed** | `20.0 – 29.0 tokens/sec` (peak) |
+| **End-to-End Explanation Latency** | `~2.3 – 4.0 seconds` |
+| **Internet / Cloud Calls** | `0` (100% offline) |
 
 ## Repository Structure
 ```text
@@ -33,7 +37,8 @@ ps3-ondevice-scam-shield/
 │   ├── LlamaDemo/          # Android Studio Jetpack Compose app (ExecuTorch + XNNPACK)
 │   └── models/             # Local model staging directory (ignored by Git)
 ├── training/
-│   └── models/             # Classifier training scripts, evaluation & exported .pte artifacts
+│   └── models/
+│       └── ScamSense_Classifier_Integration/  # TF-IDF vocab, IDF weights, rules & Python reference
 ├── report/
 │   └── docs/               # Architecture diagrams, benchmarks, and submission documentation
 └── README.md
@@ -41,27 +46,28 @@ ps3-ondevice-scam-shield/
 
 ## Setup & Running Locally
 
-### 1. Push Model Weights to Your Android Device
-Large `.pte` binaries are excluded from Git via `.gitignore`. Place `Llama-3.2-1B-Instruct-8da4w-gptq-2k.pte` and `tokenizer.model` in your local `Downloads` folder and push them via `adb`:
+### 1. Push Both Models & Vocabulary Files to Your Android Device
+Large `.pte` binaries are excluded from Git via `.gitignore`. Push the LLM weights (`Llama-3.2-1B-Instruct-8da4w-gptq-2k.pte` + `tokenizer.model`) and the Stage 1 classifier artifacts (`scam_classifier.pte`, `vocabulary.json`, `idf_weights.json`) to `/data/local/tmp/llama/`:
 
 ```bash
 adb shell mkdir -p /data/local/tmp/llama
+
+# Stage 3 LLM weights & tokenizer
 adb push Llama-3.2-1B-Instruct-8da4w-gptq-2k.pte /data/local/tmp/llama/
 adb push tokenizer.model /data/local/tmp/llama/
+
+# Stage 1 Classifier model & TF-IDF lookup files (from training/models/ScamSense_Classifier_Integration/)
+adb push training/models/ScamSense_Classifier_Integration/scam_classifier.pte /data/local/tmp/llama/
+adb push training/models/ScamSense_Classifier_Integration/vocabulary.json /data/local/tmp/llama/
+adb push training/models/ScamSense_Classifier_Integration/idf_weights.json /data/local/tmp/llama/
 ```
 
 ### 2. Build & Run in Android Studio
 1. Open `android/LlamaDemo` in **Android Studio** (configured with Gradle JVM 21).
 2. Connect an Android device with USB Debugging enabled and click **Run (`▶`)**.
-3. Tap **Check a Message** on the home screen—the app automatically loads the `.pte` model and tokenizer from `/data/local/tmp/llama/` and is ready for offline testing.
-
-## Integrating the Classifier Model
-Inside `ChatViewModel.kt`, `classifySms(smsText: String)` acts as the bridge between Stage 1 and Stage 2. To swap in a newly trained classifier `.pte`:
-1. Place the exported `.pte` and vocabulary/tokenizer mapping in `/data/local/tmp/llama/` (or `app/src/main/assets/`).
-2. Load the classifier via ExecuTorch's `Module.load(...)` and pass tokenized input IDs to `forward(...)` inside `classifySms()`, returning `Pair("SCAM" or "SAFE", confidencePercent)`.
+3. Tap **Check a Message** on the home screen—the app automatically loads the `.pte` models from `/data/local/tmp/llama/` and is ready for offline testing in Airplane Mode.
 
 ## Team
-* **Diwakar M** — Android App, ExecuTorch Integration & On-Device LLM Pipeline
-* **Archana M** — Scam Classifier Training, URL/Manipulation Features & ExecuTorch Export
-* **Durgavarshini J S** — Benchmarking, Testing & Technical Documentation
-
+* **Diwakar Manikandan** — Android App, ExecuTorch Integration & Grounded On-Device Pipeline
+* **Archana** — Scam Classifier Training, TF-IDF Feature Engineering & ExecuTorch Export
+* **Durgavarshini** — Benchmarking, Testing & Technical Documentation
