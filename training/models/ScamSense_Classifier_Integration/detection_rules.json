@@ -1,0 +1,115 @@
+{
+    "manipulation_patterns": {
+        "urgency": [
+            "\\bimmediately\\b",
+            "\\burgent\\b",
+            "\\bpay now\\b",
+            "\\btonight\\b",
+            "\\bact now\\b",
+            "\\bwithin \\d+ hours?\\b",
+            "\\blast chance\\b",
+            "\\bexpires? today\\b"
+        ],
+        "fear": [
+            "\\bblocked\\b",
+            "\\bsuspended\\b",
+            "\\bsuspension\\b",
+            "\\bdeactivated\\b",
+            "\\bdisconnected\\b",
+            "\\barrest\\b",
+            "\\blegal action\\b",
+            "\\billegal items\\b",
+            "\\bpenalty\\b"
+        ],
+        "authority": [
+            "\\bpolice\\b",
+            "\\bgovernment\\b",
+            "\\bbank\\b",
+            "\\bsbi\\b",
+            "\\bcbi\\b",
+            "\\brbi\\b",
+            "\\bcustoms\\b",
+            "\\bincome tax\\b"
+        ],
+        "financial_request": [
+            "\\btransfer money\\b",
+            "\\btransfer rs\\b",
+            "\\bpay rs\\b",
+            "\\bpay now\\b",
+            "\\bpay a penalty\\b",
+            "\\bpay processing fee\\b",
+            "\\bpay registration fee\\b",
+            "\\bdeposit money\\b",
+            "\\bsend money\\b"
+        ],
+        "credential_request": [
+            "\\bshare (your )?otp\\b",
+            "\\benter (your )?upi pin\\b",
+            "\\bsubmit (your )?password\\b",
+            "\\bverify (your )?banking details\\b",
+            "\\bprovide (your )?pin\\b",
+            "\\bshare (your )?password\\b"
+        ],
+        "reward": [
+            "\\blottery\\b",
+            "\\bcash prize\\b",
+            "\\bcongratulations\\b",
+            "\\byou won\\b",
+            "\\bearn rs\\b",
+            "\\breward points\\b",
+            "\\bfree reward\\b"
+        ]
+    },
+    "safety_patterns": [
+        "\\bnever share\\b",
+        "\\bdo not share\\b",
+        "\\bdon't share\\b",
+        "\\bdo not enter\\b",
+        "\\bdon't enter\\b",
+        "\\bnever enter\\b"
+    ],
+    "indicator_weights": {
+        "urgency": 15,
+        "fear": 20,
+        "authority": 5,
+        "financial_request": 25,
+        "credential_request": 25,
+        "reward": 10
+    },
+    "ml_weight": 0.4,
+    "behaviour_weight": 0.6,
+    "credential_request_minimum": 85,
+    "financial_pressure_minimum": 75,
+    "fear_urgency_minimum": 60,
+    "suspicious_threshold": 30,
+    "high_risk_threshold": 60,
+    "url_shorteners": [
+        "bit.ly",
+        "cutt.ly",
+        "is.gd",
+        "rb.gy",
+        "t.co",
+        "tinyurl.com"
+    ],
+    "url_keywords": [
+        "verify",
+        "login",
+        "kyc",
+        "password",
+        "otp",
+        "refund",
+        "reward",
+        "update",
+        "secure",
+        "claim"
+    ],
+    "common_network_ports": [
+        53,
+        80,
+        123,
+        443,
+        587,
+        993
+    ],
+    "aggregation_method": "maximum"
+}

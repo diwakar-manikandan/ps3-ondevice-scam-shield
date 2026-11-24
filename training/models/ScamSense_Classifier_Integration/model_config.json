@@ -1,0 +1,17 @@
+{
+    "model_name": "ScamSense_SMS_Classifier",
+    "architecture": "Logistic Regression",
+    "framework": "PyTorch",
+    "input_size": 5000,
+    "output_size": 1,
+    "output_type": "logit",
+    "activation_for_score": "sigmoid",
+    "classification_threshold": 0.5,
+    "labels": {
+        "0": "Ham",
+        "1": "Spam"
+    },
+    "pytorch_version": "2.14.1+cpu",
+    "sklearn_version": "1.6.1",
+    "parameter_count": 5001
+}

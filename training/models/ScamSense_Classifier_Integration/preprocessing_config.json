@@ -1,0 +1,19 @@
+{
+    "max_features": 5000,
+    "ngram_range": [
+        1,
+        2
+    ],
+    "lowercase": true,
+    "sublinear_tf": true,
+    "token_pattern": "(?u)\\b\\w\\w+\\b",
+    "norm": "l2",
+    "use_idf": true,
+    "smooth_idf": true,
+    "analyzer": "word",
+    "strip_accents": null,
+    "stop_words": null,
+    "binary": false,
+    "dtype": "float32",
+    "input_size": 5000
+}

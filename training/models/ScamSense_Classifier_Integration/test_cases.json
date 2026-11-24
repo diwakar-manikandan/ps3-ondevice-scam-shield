@@ -1,0 +1,42 @@
+{
+    "model": "scam_classifier.pte",
+    "input_shape": [1, 5000],
+    "input_dtype": "float32",
+    "output_shape": [1, 1],
+    "output_type": "logit",
+    "activation": "sigmoid",
+    "threshold": 0.5,
+    "tolerance_percentage_points": 0.01,
+    "test_cases": [
+        {
+            "id": 1,
+            "message": "You are under digital arrest. Transfer money immediately.",
+            "expected_ml_score_percent": 50.797647,
+            "expected_label": "SCAM"
+        },
+        {
+            "id": 2,
+            "message": "Your bank account is blocked. Share your OTP immediately.",
+            "expected_ml_score_percent": 45.714703,
+            "expected_label": "SAFE"
+        },
+        {
+            "id": 3,
+            "message": "Your appointment is confirmed for tomorrow.",
+            "expected_ml_score_percent": 26.199463,
+            "expected_label": "SAFE"
+        },
+        {
+            "id": 4,
+            "message": "Congratulations! You won a lottery. Pay processing fee.",
+            "expected_ml_score_percent": 49.472988,
+            "expected_label": "SAFE"
+        },
+        {
+            "id": 5,
+            "message": "Never share your OTP with anyone.",
+            "expected_ml_score_percent": 19.295961,
+            "expected_label": "SAFE"
+        }
+    ]
+}

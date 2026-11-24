@@ -30,6 +30,8 @@ import com.example.executorchllamademo.ModelType
 import com.example.executorchllamademo.ModelUtils
 import com.example.executorchllamademo.PromptFormat
 import com.example.executorchllamademo.ModuleSettings
+import com.example.executorchllamademo.ScamClassifier
+import com.example.executorchllamademo.ScamRules
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.InstanceCreator
@@ -84,6 +86,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), L
     private val loadedModules = mutableMapOf<String, LlmModule>()
 
     private var module: LlmModule? = null
+
+    private val scamClassifier = ScamClassifier()
     private var resultMessage: Message? = null
     private val demoSharedPreferences = DemoSharedPreferences(application)
     private var currentSettingsFields = ModuleSettings()
@@ -622,55 +626,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), L
     }
     // TODO: Replace heuristic body with Archana's trained classifier (.tflite / .onnx / .pte)
     private fun classifySms(smsText: String): Pair<String, Int> {
-        val lower = smsText.lowercase()
-        val scamSignals = listOf(
-            "kyc", "suspend", "blocked", "pan update", "bit.ly", "tinyurl",
-            ".xyz", ".top", ".buzz", "urgent", "disconnected", "electricity",
-            "lottery", "prize", "click here", "verify now", "account freeze"
-        )
-        val hits = scamSignals.count { lower.contains(it) }
-        return if (hits >= 1 || (lower.contains("http") && !lower.contains("sbi.co.in") && !lower.contains("hdfcbank.com"))) {
-            val confidence = (88 + (hits * 3)).coerceAtMost(99)
-            Pair("SCAM", confidence)
-        } else {
-            Pair("SAFE", 96)
-        }
+        return scamClassifier.classify(smsText)
     }
+
 
     fun sendMessage() {
         if (inputText.trim().isEmpty()) return
         if (!isModelReady || isGenerating) return
 
-        val rawPrompt = inputText.trim()
+        val rawPrompt = inputText.trim().take(1200)
 
-        // 1. Run lightweight classifier first (or respect manual "Verdict:" if provided)
+        // 1. Stage 1: ML Classifier + Behavioral Risk Score
         val (verdict, confidence) = classifySms(rawPrompt)
-        val classifierInput = if (rawPrompt.startsWith("Verdict:", ignoreCase = true)) {
-            rawPrompt
-        } else {
-            "Verdict: $verdict ($confidence%). Message: $rawPrompt"
-        }
+        val isScam = verdict == "SCAM"
 
-        // 2. Pick a tailored system prompt based on the classifier verdict
-        val dynamicSystemPrompt = if (verdict == "SCAM") {
-            "You are an Indian SMS security assistant. Strictly obey the given Verdict. Output ONLY 2 short bullet points explaining the specific red flags (fake links, false urgency, credential requests). Keep each bullet under 15 words with no intro sentence."
-        } else {
-            "You are an SMS security assistant. The user received this message and it was verified SAFE. Summarize in 2 short bullet points why it appears legitimate (e.g., standard informational format, no suspicious links or urgent threats). Keep each bullet under 15 words with no intro sentence."
-        }
+        // 2. Stage 2: Deterministic Evidence Extraction
+        val flags = if (isScam) ScamRules.redFlags(rawPrompt) else emptyList()
 
-        val formattedSystem = PromptFormat.getSystemPromptTemplate(currentSettingsFields.modelType)
-            .replace(PromptFormat.SYSTEM_PLACEHOLDER, dynamicSystemPrompt)
-
-        val finalPrompt = formattedSystem +
-                currentSettingsFields.getFormattedUserPrompt(classifierInput, thinkMode)
-
-
-        // 3. Show the user's pasted SMS + classifier badge in the UI
+        // Show user SMS + Red/Green verdict badge in UI
         _messages.add(Message("[$verdict • $confidence% confidence]\n$rawPrompt", true, MessageType.TEXT, promptID))
         inputText = ""
 
-        // Create result message placeholder
-        resultMessage = Message("", false, MessageType.TEXT, promptID)
+        val currentPromptId = promptID
+        resultMessage = Message("", false, MessageType.TEXT, currentPromptId)
         isInThinkingBlock = false
         _messages.add(resultMessage!!)
 
@@ -678,33 +656,55 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), L
         showMediaSelector = false
         promptID++
 
-        // Run single-turn generation
+        // Fast fallback if ML flagged SCAM but no specific regex rule matched
+        if (isScam && flags.isEmpty()) {
+            onResult("• This message resembles known scam patterns.\n\n" + ScamRules.advice(verdict, flags))
+            return
+        }
+
+        // 3. Stage 3: Grounded Llama 3.2 1B Explanation
+        val systemPrompt = if (isScam) ScamRules.scamSystemPrompt(flags.size) else ScamRules.SAFE_SYSTEM
+        val userPrompt = if (isScam) ScamRules.scamUserPrompt(flags) else ScamRules.safeUserPrompt(rawPrompt)
+
+        val formattedSystem = PromptFormat.getSystemPromptTemplate(currentSettingsFields.modelType)
+            .replace(PromptFormat.SYSTEM_PLACEHOLDER, systemPrompt)
+
+        val finalPrompt = formattedSystem +
+                currentSettingsFields.getFormattedUserPrompt(userPrompt, thinkMode)
+
         executor.execute {
             android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_MORE_FAVORABLE)
             ETLogging.getInstance().log("starting single-turn Scam Shield generate()")
             isGenerating = true
 
-            // Reset KV cache so previous scans never bleed into the next SMS
             module?.resetContext()
 
             val generateStartTime = System.currentTimeMillis()
-            module?.generate(finalPrompt, appSettings.maxSeqLen, this, false)
+            val seqCap = if (isScam) 240 else 180
+            module?.generate(finalPrompt, seqCap, this, false)
 
             val generateDuration = System.currentTimeMillis() - generateStartTime
             resultMessage?.let { msg ->
-                // Ensure second bullet starts cleanly on its own line
-                msg.totalGenerationTime = generateDuration
+                val body = ScamRules.clean(msg.text, if (isScam) flags.size else 1)
+                val fallback = if (isScam) flags.joinToString("\n\n") { "• $it." } else "• This message contains no scam signs."
+                val finalDisplay = body.ifBlank { fallback } + "\n\n" + ScamRules.advice(verdict, flags)
+
                 val index = _messages.indexOfLast { it === msg }
                 if (index >= 0) {
-                    val updated = msg.copy()
-                    _messages[index] = updated
-                    resultMessage = updated
+                    val cleanedMsg = Message(finalDisplay, false, MessageType.TEXT, currentPromptId).apply {
+                        tokensPerSecond = msg.tokensPerSecond
+                        totalGenerationTime = generateDuration
+                    }
+                    _messages[index] = cleanedMsg
+                    resultMessage = cleanedMsg
                 }
             }
             isGenerating = false
             ETLogging.getInstance().log("Inference completed")
         }
     }
+
+
 
 
     fun stopGeneration() {
