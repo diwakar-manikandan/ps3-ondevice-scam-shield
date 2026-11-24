@@ -1,0 +1,11 @@
+﻿*.pte
+*.bin
+*.pt
+*.onnx
+*.tflite
+.gradle/
+build/
+local.properties
+.idea/
+__pycache__/
+.ipynb_checkpoints/
