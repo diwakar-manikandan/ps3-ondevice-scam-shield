@@ -636,12 +636,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), L
 
         val rawPrompt = inputText.trim().take(1200)
 
-        // 1. Stage 1: ML Classifier + Behavioral Risk Score
-        val (verdict, confidence) = classifySms(rawPrompt)
-        val isScam = verdict == "SCAM"
+        // 1. Run ML Classifier AND Deterministic Regex Rules
+        val (mlVerdict, mlConfidence) = classifySms(rawPrompt)
+        val flags = ScamRules.redFlags(rawPrompt) // Always extract red flags!
 
-        // 2. Stage 2: Deterministic Evidence Extraction
-        val flags = if (isScam) ScamRules.redFlags(rawPrompt) else emptyList()
+        // 2. Either ML classifier OR regex rules can flag SCAM
+        val isScam = (mlVerdict == "SCAM") || flags.isNotEmpty()
+        val verdict = if (isScam) "SCAM" else "SAFE"
+        val confidence = if (flags.isNotEmpty()) 95 else mlConfidence
 
         // Show user SMS + Red/Green verdict badge in UI
         _messages.add(Message("[$verdict • $confidence% confidence]\n$rawPrompt", true, MessageType.TEXT, promptID))
@@ -703,6 +705,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), L
             ETLogging.getInstance().log("Inference completed")
         }
     }
+
 
 
 
